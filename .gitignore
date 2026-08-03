@@ -1,0 +1,27 @@
+# Datasets and generated artifacts (kept in Drive, not git)
+data/
+features/
+models/
+raw/
+manifest.csv
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+*.log
+
+# Large audio/model file types, as a safety net
+*.wav
+*.h5
+*.npy
+*.zip

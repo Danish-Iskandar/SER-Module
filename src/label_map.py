@@ -3,20 +3,20 @@ Central emotion label mapping for the SER module.
 
 RAVDESS, SAVEE, and IEMOCAP each use their own native emotion vocabularies.
 None of them contain a "Confident" class. This file defines the proxy mapping
-from native labels -> the project's 4 target classes:
+from native labels -> the project's 3 target classes:
 
-    Neutral, Stressed, Frustrated, Confident
+    Neutral, Stressed, Confident
 
 This mapping is a modeling assumption, not ground truth — document it in your
-report (Section 3.2 / Limitations). Edit TARGET_CLASSES and the *_MAP dicts
-below to change it; everything downstream (preprocess.py, train.py) reads
-from here so you only have to change it in one place.
+report (Limitations section). Edit TARGET_CLASSES and the *_MAP dicts below
+to change it; everything downstream (preprocess.py, train.py) reads from
+here so you only have to change it in one place.
 
 Any native label not present in a mapping dict is dropped (not used).
 """
 
-# Final 4 classes, in a fixed order used for one-hot / integer encoding.
-TARGET_CLASSES = ["Neutral", "Stressed", "Frustrated", "Confident"]
+# Final 3 classes, in a fixed order used for one-hot / integer encoding.
+TARGET_CLASSES = ["Neutral", "Stressed", "Confident"]
 
 # --- RAVDESS -----------------------------------------------------------
 # Filename format: 03-01-EE-II-SS-RR-AA.wav, EE = emotion code (03 field)
@@ -47,7 +47,6 @@ SAVEE_PREFIX_TO_NATIVE = {
 
 # --- IEMOCAP ---------------------------------------------------------------
 # Native categorical labels used in IEMOCAP's evaluation .txt annotations.
-# 'fru' (frustration) maps straight to your Frustrated class without a proxy.
 IEMOCAP_NATIVE_ALIASES = {
     "neu": "neutral",
     "hap": "happy",
@@ -55,7 +54,7 @@ IEMOCAP_NATIVE_ALIASES = {
     "sad": "sad",
     "ang": "angry",
     "fea": "fearful",
-    "fru": "frustrated",  # native frustration label, no proxy needed
+    "fru": "frustrated",  # no target class in the 3-class scheme; dropped
     "sur": "surprised",
     "dis": "disgust",
 }
@@ -65,11 +64,9 @@ NATIVE_TO_TARGET = {
     "neutral": "Neutral",
     "calm": "Neutral",
     "fearful": "Stressed",
-    "angry": "Frustrated",
-    "disgust": "Frustrated",
-    "frustrated": "Frustrated",
     "happy": "Confident",
-    # dropped (no target class): "sad", "surprised"
+    # dropped (no target class in the 3-class scheme):
+    # "sad", "surprised", "angry", "disgust", "frustrated"
 }
 
 

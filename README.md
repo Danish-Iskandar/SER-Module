@@ -162,6 +162,12 @@ cd <your-repo-name>
 ## Author
 
 **Muhammad Danish Iskandar Bin Zahrul-Ikram**
-Bachelor of Computer Science (Hons.), Universiti Teknologi PETRONAS
+Bachelor of Computer Science (Hons.)
+Universiti Teknologi PETRONAS
 
-Supervisor: Assoc. Prof. Ts. Dr. Noreen Izza Bt Arshad
+## Supervisor
+
+Assoc. Prof. Ts. Dr. Noreen Izza Bt Arshad
+Associate Professor (Computing)
+Faculty of Science, Management & Computing
+Universiti Teknologi PETRONAS

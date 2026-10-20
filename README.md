@@ -1,159 +1,173 @@
-# SER Module — Adaptive VR Quay Crane Training
+# Adaptive VR Training System for Quay Crane Operators
 
-Speech Emotion Recognition pipeline: MFCC feature extraction + CNN-LSTM classifier,
-trained on RAVDESS, SAVEE, and (optionally) IEMOCAP.
+![Unity](https://img.shields.io/badge/Unity-VR-black?logo=unity)
+![Python](https://img.shields.io/badge/Python-SER%20Backend-3776AB?logo=python&logoColor=white)
+![WebSocket](https://img.shields.io/badge/Socket.io-WebSocket-010101?logo=socketdotio)
+![Status](https://img.shields.io/badge/Status-In%20Development-orange)
 
-## 1. Get the datasets
+An emotion-aware Virtual Reality training system for Ship-to-Shore (STS) quay crane operators. It uses **voice-based Speech Emotion Recognition (SER)** to detect the trainee's emotional state and dynamically adjust training scenarios in real time.
 
-| Dataset | Access | Notes |
-|---|---|---|
-| **RAVDESS** (speech) | Free, instant. Download `Audio_Speech_Actors_01-24.zip` from Zenodo: https://zenodo.org/record/1188976 | ~215MB, 24 actors |
-| **SAVEE** | Free, instant. http://kahlan.eps.surrey.ac.uk/savee/Download.html | 4 male actors |
-| **IEMOCAP** | **Requires a signed license request** to USC SAIL: https://sail.usc.edu/iemocap/iemocap_release.htm | Approval can take days–weeks. Start this today. Build/test on RAVDESS+SAVEE while you wait — the code below treats IEMOCAP as optional. |
+> Final Year Project, Bachelor of Computer Science (Hons.), Universiti Teknologi PETRONAS (UTP)
 
-Unzip everything into a `data/` folder like this:
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [System Architecture](#system-architecture)
+- [Emotion Classes](#emotion-classes)
+- [Tech Stack](#tech-stack)
+- [Datasets](#datasets)
+- [Instructor Dashboard](#instructor-dashboard)
+- [Development Methodology](#development-methodology)
+- [Evaluation Plan](#evaluation-plan)
+- [Project Status](#project-status)
+- [Scope](#scope)
+- [Getting Started](#getting-started)
+- [Future Work](#future-work)
+- [References](#references)
+- [Author](#author)
+
+---
+
+## Overview
+
+Quay crane operators perform millimetre-precision container transfers from cabins about 40 metres in the air, under sustained cognitive load, fatigue, and environmental stress. VR simulators are the current standard for zero-risk training, but they are **passive**: they scale difficulty linearly without considering the trainee's psychological or emotional state.
+
+This project bridges that gap. The system listens to the operator through the VR headset microphone, classifies their emotional state, and adapts the simulation accordingly, treating an overwhelmed novice differently from a confident expert.
+
+## Features
+
+- **Speech Emotion Recognition:** MFCC feature extraction with a CNN-LSTM classifier
+- **Real-time adaptation:** scenario difficulty adjusts based on detected emotion and confidence level
+- **Emotion-reactive avatar:** a 3D operator avatar in Unity that changes colour with the detected state (e.g. red for stress)
+- **Confidence thresholding:** prevents the detected state from flickering on noisy or ambiguous input
+- **Instructor dashboard:** live emotional state, rolling emotion timeline, and an auditable adaptive event log
+- **Non-intrusive sensing:** voice only, with no biosensors required
+
+## System Architecture
 
 ```
-data/
-  RAVDESS/Actor_01/03-01-05-01-01-01-01.wav ...
-  SAVEE/ALL/a01.wav ...
-  IEMOCAP/Session1/... (once you get access)
+Voice Input (VR headset microphone, short overlapping frames)
+        │
+        ▼
+SER Processing (MFCC extraction + CNN-LSTM classification)
+        │
+        ▼
+Middleware (Socket.io / WebSocket broadcasts emotion state as JSON)
+        │
+        ├──► Avatar Colour      (changes with emotion state)
+        ├──► Adaptive Engine    (adjusts scenario parameters)
+        └──► Instructor Dashboard (live state + session logs)
 ```
 
-## 2. Environment (Google Colab recommended)
+| Layer | Description |
+| --- | --- |
+| **Input** | Audio captured from the VR headset microphone and segmented into short, overlapping frames for real-time updates. |
+| **Processing** | Each frame is converted to MFCC features and passed to the CNN-LSTM model, which outputs a probability distribution across emotion classes. A confidence threshold decides whether to accept a new state or retain the previous one. |
+| **Middleware** | A Socket.io/WebSocket server connects the Python SER backend to Unity, publishing lightweight JSON messages. |
+| **Output** | Avatar colour change, adaptive scenario adjustments (e.g. reducing wind speed when frustration crosses a threshold, or enabling a voice-assistant tip when stress is detected), and logging to the instructor dashboard. |
 
-In a Colab notebook:
+## Emotion Classes
 
-```python
-!pip install librosa tensorflow scikit-learn pandas soundfile
-```
+| Class | Description |
+| --- | --- |
+| Neutral | Baseline operator state |
+| Stressed / Anxious | Elevated stress, may trigger supportive adaptations |
+| Frustrated | May trigger reduced difficulty (e.g. lower wind speed) |
+| Confident | Operator is coping well, difficulty can be maintained or increased |
 
-Then upload this `ser_module/` folder to Colab (or `git clone` if you push it to
-a repo), mount Google Drive for the `data/` folder so you don't re-upload
-every session:
+## Tech Stack
 
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-```
+- **Simulator and avatar:** Unity (C#)
+- **SER backend:** Python (CNN-LSTM, MFCC features)
+- **Middleware:** Socket.io / WebSocket (JSON messaging)
+- **Dashboard:** 2D secondary-display monitoring interface
 
-## 3. Emotion label mapping (READ THIS — you need to justify this in your report)
+## Datasets
 
-Your project targets 3 classes: **Neutral, Stressed, Confident** (matching
-Section 3.2 of your Interim Report). None of RAVDESS/SAVEE/IEMOCAP label
-emotions this way natively, so `label_map.py` defines an explicit proxy
-mapping (documented there). The default is:
+The SER model is trained on three widely benchmarked emotional speech datasets:
 
-- Neutral ← neutral, calm
-- Stressed ← fearful/fear
-- Confident ← happy/happiness (proxy — flag this as a limitation in your report)
+- **RAVDESS:** Ryerson Audio-Visual Database of Emotional Speech and Song
+- **IEMOCAP:** Interactive Emotional Dyadic Motion Capture
+- **SAVEE:** Surrey Audio-Visual Expressed Emotion
 
-Everything else — sad, surprised, angry, disgust, and IEMOCAP's native
-"frustration" label — is dropped (not mapped to any of your 3 classes).
-Note this noticeably shrinks how much of IEMOCAP is usable, since a chunk of
-its utterances are angry/frustrated/disgust, which are no longer targets.
-You can edit `label_map.py` to change any of this — it's the single source
-of truth, everything downstream (`preprocess.py`, `train.py`) reads from it
-automatically.
+## Instructor Dashboard
 
-**Report consistency note:** your Abstract/Objectives previously referenced
-4 classes (including Frustrated) while Section 3.2 said 3 — make sure both
-are updated to say 3 classes consistently now that the code matches 3.2.
+The dashboard runs on a secondary 2D display so instructors can monitor trainees without disrupting VR immersion.
 
-## 4. Run the pipeline
+- **Status indicator cards:** current emotional state, stress index, fatigue index, and adaptation cycle timing
+- **Real-time emotion line chart:** stress, frustration, and confidence plotted over a rolling 3-minute window
+- **Adaptive event log:** timestamped record of every automatic adaptation, for post-session debriefing
+
+## Development Methodology
+
+The project follows an **iterative, incremental** approach so the SER model, avatar, and middleware can be built and tested in parallel.
+
+| Phase | Focus |
+| --- | --- |
+| **1. Data Preparation and Model Training** | Extract MFCC features, train and validate the CNN-LSTM, tune confidence thresholds using accuracy and confusion matrices |
+| **2. Avatar and Middleware Development** | Build the Unity avatar and the Socket.io/WebSocket bridge to the SER backend |
+| **3. System Integration** | Integrate SER, avatar, and dashboard into the Unity quay crane simulator with the adaptive engine |
+| **4. Evaluation** | Within-subject comparison of adaptive vs. non-adaptive training |
+
+## Evaluation Plan
+
+A within-subject study will compare adaptive and non-adaptive training sessions, measuring:
+
+- Operator performance KPIs
+- Perceived cognitive load via the **NASA Task Load Index (NASA-TLX)**
+
+## Project Status
+
+| Component | Status |
+| --- | --- |
+| Unity avatar | Prototype complete (colour-based emotion feedback) |
+| SER module | In active development (MFCC pipeline, model training, threshold tuning) |
+| Instructor dashboard | Designed, not yet integrated with live SER output |
+| System integration | Planned |
+| Evaluation | Planned |
+
+## Scope
+
+- **VR development:** limited to the 3D operator avatar with colour-based emotion feedback. Crane mechanics and physics simulation are part of the existing simulator and out of scope.
+- **SER module:** audio capture, MFCC extraction, and CNN-LSTM classification into four emotion classes.
+- **Dashboard:** live monitoring and historical session logging for post-training review.
+
+## Getting Started
+
+> Setup instructions will be added as the project develops.
 
 ```bash
-python src/build_manifest.py --data_root data/ --out manifest.csv
-python src/preprocess.py --manifest manifest.csv --out features/
-python src/train.py --features features/ --out models/
+# Clone the repository
+git clone https://github.com/<your-username>/<your-repo-name>.git
+cd <your-repo-name>
 ```
 
-Or run each script's `main()` directly inside Colab cells — they're written
-to work either way.
+## Future Work
 
-## 5. What you get
+- Expand avatar expressiveness from colour changes to full facial blendshape animation
+- Add physiological signals (e.g. heart rate variability) alongside voice to cross-validate predictions
+- Evaluate with real or trainee quay crane operators for greater ecological validity
+- Generalise the approach to other high-risk operator roles
 
-- `features/X.npy`, `features/y.npy` — padded MFCC sequences + integer labels, cached so you don't re-extract every run
-- `models/ser_cnn_lstm.h5` — trained Keras model
-- `models/label_encoder.pkl` — maps class indices back to emotion names (needed by the real-time server, section 6)
-- Confusion matrix + classification report printed at the end of training, plus a `models/training_history.png`
+## References
 
-## 6. Real-time inference + Unity (WebSocket)
+- Dhalmahapatra, K., Singh, S., Niyogi, S., & Vinod Kumar, M. (2021). Assessment of virtual reality based safety training simulator for electric overhead crane operations. *Safety Science, 139*, 105241.
+- Nasri, M. (2025). Towards intelligent VR training: A physiological adaptation framework for cognitive load and stress detection. *arXiv*. https://arxiv.org/pdf/2504.06461
+- Ouyang, Q. (2025). Speech emotion detection based on MFCC and CNN-LSTM architecture. *arXiv*. https://arxiv.org/abs/2501.10666
+- Scorgie, D., Feng, Z., Paes, D., Parisi, F., Yiu, T. W., & Lovreglio, R. (2024). Virtual reality for safety training: A systematic literature review and meta-analysis. *Safety Science, 171*, 106372.
 
-Pieces: `src/inference.py` (rolling 3 s buffer -> MFCC -> model -> threshold),
-`src/server.py` (WebSocket middleware), `src/stream_client.py` (test client, no
-Unity needed), `unity/SERClient.cs` (mic streaming + avatar colour).
+## Author
 
-**A. Copy three trained artifacts next to the code** (they are gitignored, so
-`git clone` will not bring them). From Drive:
+**Muhammad Danish Iskandar Bin Zahrul-Ikram**
+Bachelor of Computer Science (Hons.)
+Universiti Teknologi PETRONAS
 
-```
-models/ser_cnn_lstm.h5
-models/label_encoder.pkl
-features/norm_stats.npy      <- from the SAME features/ folder used for training
-```
+## Supervisor
 
-Do not use `features_augmented/norm_stats.npy`; the model was trained on the
-non-augmented features and needs its exact mean/std.
-
-**B. Run the server locally** (real inference needs TensorFlow installed locally):
-
-```bash
-cd src
-python server.py --model ../models/ser_cnn_lstm.h5 \
-    --norm ../features/norm_stats.npy --labels ../models/label_encoder.pkl
-```
-
-`python server.py --dummy` runs without a model and cycles fake emotions,
-which is useful for testing the Unity side first.
-
-**C. Test the whole path without Unity**
-
-```bash
-python stream_client.py --wav path/to/some_ravdess_clip.wav   # streams in real time
-python stream_client.py --mic                                  # laptop microphone
-```
-
-**D. Unity**
-
-1. Package Manager -> Add from git URL: `https://github.com/endel/NativeWebSocket.git#upm`
-2. Add `unity/SERClient.cs` to a GameObject, drag the avatar's Renderer into it.
-3. Server URL: `ws://localhost:8765` in the Editor on the same PC; for a
-   standalone Quest use `ws://<PC LAN IP>:8765`, on the same network, with the
-   port allowed through the PC firewall. Shared/campus Wi-Fi sometimes blocks
-   device-to-device traffic; if the Quest cannot connect, try a phone hotspot,
-   your own router, or Quest Link (then localhost works).
-4. Hook the adaptive engine to the `onEmotionChanged` event.
-
-**Measure your microphone first:**
-
-```bash
-python mic_check.py
-```
-
-It records quiet and talking, then suggests a `--silence_rms` value. Rerun it
-for each new mic (the Quest headset mic will differ from your laptop).
-
-**Server settings:**
-
-| Flag | Default | What it does |
-|---|---|---|
-| `--silence_rms` | 0.02 | No prediction below this level. Recorded RAVDESS clips are quiet, so use `0.002` for `--wav` tests. |
-| `--warmup` | 1.0 s | Audio ignored after a client connects, to skip the mic start-up glitch. |
-| `--smooth` | 3 | Windows averaged before deciding. Stops one-second spikes changing the state; adds about 1 s of delay. `1` turns it off. |
-| `--threshold` | 0.6 | Minimum smoothed probability needed to change state. |
-
-**Known limits from live testing (Oct 2026, laptop mic):**
-
-- Confident never appeared (top probability 0.05), matching the 39% recall
-  on the test set plus the studio-to-mic domain gap.
-- The model is overconfident (0.99+ on an unseen voice), which is why the
-  threshold alone did not stop flicker and smoothing was added.
-- Changes register about 1-2 s after the speech that caused them (3 s window
-  plus smoothing).
-
-**What has been verified:** the server/client protocol, warm-up, the
-DC-proof silence gate, smoothing, 16 kHz and 48 kHz input, and loading a real
-`.h5` through `load_artifacts` were run end to end, plus a live laptop-mic run
-with the trained model. `SERClient.cs` has NOT been compiled or run in Unity; test it in
-the Editor with `--dummy` first.
+Assoc. Prof. Ts. Dr. Noreen Izza Bt Arshad
+Associate Professor (Computing)
+Faculty of Science, Management & Computing
+Universiti Teknologi PETRONAS

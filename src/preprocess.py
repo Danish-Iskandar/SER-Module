@@ -31,7 +31,7 @@ N_MFCC = 40
 MAX_LEN = 130                # ~time steps for 3s audio at default hop_length
 
 # Loudness normalisation settings
-TARGET_SPEECH_RMS = 0.05     # loudness every clip's speech is scaled to
+TARGET_SPEECH_RMS = None     # loudness every clip's speech is scaled to
 SPEECH_FRAME_RATIO = 0.1     # frames above 10% of the loudest frame count as speech
 MAX_GAIN = 50.0              # never amplify more than this (avoids boosting pure noise)
 

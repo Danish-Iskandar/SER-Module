@@ -71,6 +71,18 @@ python src/train.py --features features/ --out models/
 Or run each script's `main()` directly inside Colab cells — they're written
 to work either way.
 
+### Loudness normalisation
+
+`preprocess.py` scales every clip so its speech reaches the same loudness
+(`TARGET_SPEECH_RMS = 0.05`) before extracting MFCCs. Only speech frames are
+measured, so the silence at the start of RAVDESS clips doesn't distort it.
+The real-time server uses the same function, so a quiet laptop mic, a loud
+shout and the studio recordings are all judged on tone rather than volume.
+
+A model must be trained and used with the same setting. A model trained before
+this change (Oct 2026) will give wrong results with the current code; retrain
+it. To turn normalisation off, set `TARGET_SPEECH_RMS = None` and retrain.
+
 ## 5. What you get
 
 - `features/X.npy`, `features/y.npy` — padded MFCC sequences + integer labels, cached so you don't re-extract every run

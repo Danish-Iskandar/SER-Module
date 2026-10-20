@@ -2,7 +2,7 @@
 // Streams microphone audio to the Python SER server over WebSocket and
 // receives emotion state updates back (see src/server.py for the protocol).
 //
-// SETUP
+// SETUP (Windows + Unity)
 //  1. Install NativeWebSocket: Window > Package Manager > "+" > Add package
 //     from git URL:  https://github.com/endel/NativeWebSocket.git#upm
 //  2. Add this script to any GameObject (e.g. an empty "SER" object).
@@ -49,6 +49,9 @@ public class SERClient : MonoBehaviour
     public string serverUrl = "ws://localhost:8765";
 
     [Header("Microphone")]
+    [Tooltip("Leave empty for the default mic. Otherwise paste a name exactly as " +
+             "printed in the Console by '[SER] microphones found'.")]
+    public string microphoneDevice = "";
     [Tooltip("Requested rate; the device may give a different one (handled).")]
     public int requestedSampleRate = 16000;
     [Tooltip("Seconds of audio per WebSocket message.")]
@@ -66,6 +69,9 @@ public class SERClient : MonoBehaviour
     public EmotionEvent onEmotionChanged;
 
     public string CurrentEmotion { get; private set; } = "Neutral";
+
+    // Unity's Microphone API uses null for "default device".
+    string MicName => string.IsNullOrEmpty(microphoneDevice) ? null : microphoneDevice;
 
     WebSocket ws;
     AudioClip micClip;
@@ -105,6 +111,7 @@ public class SERClient : MonoBehaviour
                 yield return null;
         }
 #endif
+        Debug.Log("[SER] microphones found: " + string.Join(" | ", Microphone.devices));
         if (Microphone.devices.Length == 0)
         {
             Debug.LogError("[SER] no microphone found");
@@ -112,8 +119,13 @@ public class SERClient : MonoBehaviour
         }
 
         // Looping 10 s ring buffer on the default device.
-        micClip = Microphone.Start(null, true, 10, requestedSampleRate);
-        while (Microphone.GetPosition(null) <= 0) yield return null;
+        micClip = Microphone.Start(MicName, true, 10, requestedSampleRate);
+        if (micClip == null)
+        {
+            Debug.LogError("[SER] could not start microphone '" + microphoneDevice + "'");
+            yield break;
+        }
+        while (Microphone.GetPosition(MicName) <= 0) yield return null;
 
         micSampleRate = micClip.frequency;
         lastMicPos = 0;
@@ -141,7 +153,7 @@ public class SERClient : MonoBehaviour
     {
         if (!micReady || micClip == null || ws == null || ws.State != WebSocketState.Open) return;
 
-        int pos = Microphone.GetPosition(null);
+        int pos = Microphone.GetPosition(MicName);
         if (pos < 0) return;
 
         int available = pos - lastMicPos;
@@ -211,7 +223,7 @@ public class SERClient : MonoBehaviour
 
     async void OnDestroy()
     {
-        if (Microphone.IsRecording(null)) Microphone.End(null);
+        if (Microphone.IsRecording(MicName)) Microphone.End(MicName);
         if (ws != null) await ws.Close();
     }
 }

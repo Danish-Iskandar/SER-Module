@@ -8,6 +8,12 @@ Run:
 With augmentation (balances under-represented classes up to the largest
 class's count by generating pitch-shift/time-stretch/noise variants):
     python preprocess.py --manifest manifest.csv --out features/ --augment
+
+Loudness normalisation: every clip is scaled so its speech reaches the same
+loudness (TARGET_SPEECH_RMS) before MFCC extraction. This lives inside
+mfcc_from_waveform, which the real-time server also calls, so training and
+live inference are always normalised identically. Set TARGET_SPEECH_RMS to
+None to turn it off (then retrain, since old models expect unnormalised input).
 """
 import argparse
 import os
@@ -24,6 +30,11 @@ DURATION_SEC = 3.0          # pad/truncate every clip to this length
 N_MFCC = 40
 MAX_LEN = 130                # ~time steps for 3s audio at default hop_length
 
+# Loudness normalisation settings
+TARGET_SPEECH_RMS = 0.05     # loudness every clip's speech is scaled to
+SPEECH_FRAME_RATIO = 0.1     # frames above 10% of the loudest frame count as speech
+MAX_GAIN = 50.0              # never amplify more than this (avoids boosting pure noise)
+
 
 def load_waveform(filepath):
     y, sr = librosa.load(filepath, sr=SAMPLE_RATE, duration=DURATION_SEC)
@@ -35,7 +46,28 @@ def load_waveform(filepath):
     return y, sr
 
 
+def normalize_loudness(y):
+    """Scale a waveform so its speech frames reach TARGET_SPEECH_RMS.
+
+    Only frames louder than SPEECH_FRAME_RATIO x the loudest frame are
+    measured, so leading/trailing silence (about 1 s in every RAVDESS clip)
+    does not drag the measurement down. Returns y unchanged if normalisation
+    is disabled or the clip is completely silent.
+    """
+    if TARGET_SPEECH_RMS is None:
+        return y
+    frame_rms = librosa.feature.rms(y=y)[0]
+    loudest = float(frame_rms.max()) if frame_rms.size else 0.0
+    if loudest <= 1e-8:
+        return y
+    speech = frame_rms[frame_rms >= SPEECH_FRAME_RATIO * loudest]
+    speech_rms = float(np.sqrt(np.mean(speech ** 2)))
+    gain = min(TARGET_SPEECH_RMS / speech_rms, MAX_GAIN)
+    return np.clip(y * gain, -1.0, 1.0).astype(np.float32)
+
+
 def mfcc_from_waveform(y, sr):
+    y = normalize_loudness(y)
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)  # (n_mfcc, time)
     mfcc = mfcc.T  # (time, n_mfcc) - time-major for the CNN-LSTM input
 

@@ -1,0 +1,11 @@
+Original model
+              precision    recall  f1-score   support
+
+     Neutral      0.866     0.951     0.906        61
+    Stressed      0.811     0.789     0.800        38
+   Confident      0.818     0.711     0.761        38
+
+    accuracy                          0.839       137
+   macro avg      0.832     0.817     0.822       137
+weighted avg      0.837     0.839     0.836       137
+
